@@ -1,0 +1,28 @@
+Пульт для Apple TV
+Copyright 2026
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Реализация протокола Companion Link и туннеля AirPlay/MRP в
+app/src/main/java/com/example/appletvremote/protocol является производной
+работой проекта "Remote for Apple TV"
+(https://github.com/msthind04/AppleTV-Remote),
+Copyright 2026 The Remote for Apple TV contributors,
+лицензированного под Apache License 2.0.
+
+Часть проверки протокола выполнялась по проекту pyatv
+(https://github.com/postlund/pyatv), Copyright (c) 2020 Pierre Ståhl,
+лицензированному под MIT. Подробности — в THIRD_PARTY_NOTICES.md.
+
+This product includes software derived from pyatv
+(https://github.com/postlund/pyatv), Copyright (c) 2020 Pierre Ståhl,
+licensed under the MIT License. See THIRD_PARTY_NOTICES.md.
+
+This project is not affiliated with, authorized by, endorsed by, or in any
+way officially connected with Apple Inc. "Apple", "Apple TV", "AirPlay" and
+"Siri" are trademarks of Apple Inc., registered in the U.S. and other
+countries. They are used here solely to describe compatibility.

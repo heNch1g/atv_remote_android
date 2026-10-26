@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Пульт для Apple TV</string>
+
+    <!-- Device discovery -->
+    <string name="scan">Искать</string>
+    <string name="searching">Поиск Apple TV в сети…</string>
+    <string name="devices_found">Найдено устройств: %1$d</string>
+    <string name="paired">Сопряжено</string>
+    <string name="not_paired">Новое</string>
+    <string name="no_devices_title">Apple TV не найдена</string>
+    <string name="no_devices_hint">Проверьте, что телефон и Apple TV подключены к одной сети Wi-Fi, и нажмите «Искать».</string>
+    <string name="discovery_hint">На Apple TV включите: Настройки → Пульты и устройства. Сопряжение выполняется один раз.</string>
+
+    <!-- Pairing -->
+    <string name="pairing_title">Сопряжение</string>
+    <string name="pairing_hint">Введите четырёхзначный код, который показан на экране Apple TV.</string>
+    <string name="pin_label">Код с экрана</string>
+    <string name="connect">Подключить</string>
+    <string name="cancel">Отмена</string>
+
+    <!-- Remote -->
+    <string name="connected">Подключено</string>
+    <string name="disconnected">Нет связи</string>
+    <string name="reconnecting">Переподключение…</string>
+    <string name="back">Назад</string>
+    <string name="up">Вверх</string>
+    <string name="down">Вниз</string>
+    <string name="left">Влево</string>
+    <string name="right">Вправо</string>
+    <string name="select">OK</string>
+    <string name="menu">Меню</string>
+    <string name="home">Домой</string>
+    <string name="play_pause">Плей / пауза</string>
+    <string name="volume">Громкость</string>
+    <string name="volume_up">Громче</string>
+    <string name="volume_down">Тише</string>
+    <string name="volume_unavailable_short">Громкость: ИК-пульт</string>
+    <string name="sleep">Сон</string>
+    <string name="wake">Разбудить</string>
+    <string name="wake_hint">«%1$s» не отвечает. Возможно, Apple TV спит.</string>
+    <string name="forget">Забыть</string>
+    <string name="forget_title">Забыть устройство?</string>
+    <string name="forget_message">Устройство «%1$s» будет удалено из списка. Чтобы снова им управлять, потребуется заново ввести код с экрана Apple TV.</string>
+    <string name="pad_mode_buttons">Кнопки</string>
+    <string name="pad_mode_touchpad">Тачпад</string>
+    <string name="touchpad_hint">Коснитесь — OK · Свайп — навигация</string>
+    <string name="keyboard">Клавиатура</string>
+    <string name="player">Плеер</string>
+
+    <!-- Settings -->
+    <string name="settings">Настройки</string>
+    <string name="settings_title">Настройки пульта</string>
+    <string name="setting_swipe_guard">Защита от обратных свайпов</string>
+    <string name="setting_swipe_guard_hint">Не реагировать на случайное движение назад во время свайпа.</string>
+    <string name="setting_theme">Тема</string>
+    <string name="setting_theme_hint">Как в системе, всегда тёмная или всегда светлая.</string>
+    <string name="theme_auto">Авто</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="theme_light">Светлая</string>
+    <string name="setting_volume">Ползунок громкости</string>
+    <string name="setting_volume_hint">Показывать регулятор громкости на пульте.</string>
+    <string name="setting_player">Плеер в шторке</string>
+    <string name="setting_player_hint">Показывать фильм или музыку с Apple TV в шторке: прогресс, пауза и перемотка на 15 секунд.</string>
+    <string name="setting_player_connected">Подключён: прогресс и перемотка доступны.</string>
+    <string name="setting_player_pair">Подключить</string>
+    <string name="setting_player_working">Подключение…</string>
+    <string name="done">Готово</string>
+    <string name="more_options">Ещё</string>
+    <string name="forget_pairing">Забыть сопряжение</string>
+
+    <!-- Media notification -->
+    <string name="nothing_playing">Ничего не воспроизводится</string>
+    <string name="notif_channel_nowplaying">Сейчас играет</string>
+    <string name="notif_channel_nowplaying_desc">Плеер Apple TV с прогрессом и перемоткой.</string>
+    <string name="play">Воспроизвести</string>
+    <string name="pause">Пауза</string>
+    <string name="skip_back">−15 секунд</string>
+    <string name="skip_forward">+15 секунд</string>
+
+    <!-- AirPlay player pairing -->
+    <string name="airplay_pairing_title">Подключение плеера</string>
+    <string name="airplay_pairing_hint">Apple TV покажет отдельный код для плеера. Введите его, чтобы видеть прогресс фильма в шторке.</string>
+
+    <!-- Text input -->
+    <string name="text_input">Ввод текста</string>
+    <string name="text_on_screen">На экране: %1$s</string>
+    <string name="text_no_field">На Apple TV сейчас не выбрано поле ввода. Откройте поиск или другое поле и коснитесь его пультом.</string>
+    <string name="text_placeholder">Введите текст…</string>
+    <string name="text_focus_hint">Текст отправляется в поле, которое сейчас выделено на Apple TV.</string>
+    <string name="clear">Очистить</string>
+    <string name="send">Отправить</string>
+    <string name="close">Закрыть</string>
+    <string name="dismiss">Закрыть</string>
+
+    <!-- Messages -->
+    <string name="notice_wake_sent">Команда пробуждения отправлена.</string>
+    <string name="notice_forgotten">Сопряжение удалено.</string>
+    <string name="error_pairing_start">Не удалось начать сопряжение: %1$s</string>
+    <string name="error_pairing_failed">Не удалось завершить сопряжение: %1$s</string>
+    <string name="error_pin_length">Введите все четыре цифры кода.</string>
+    <string name="error_wrong_pin">Неверный код. Начните сопряжение заново.</string>
+    <string name="error_connect">Не удалось подключиться: %1$s</string>
+    <string name="error_stale_pairing">Apple TV больше не помнит это сопряжение. Выполните сопряжение заново.</string>
+    <string name="error_lost_connection">Соединение с Apple TV потеряно. Попробуйте ещё раз.</string>
+    <string name="error_no_text_field">На Apple TV не выбрано поле ввода.</string>
+    <string name="error_wake_failed">Не удалось разбудить Apple TV. Проверьте сеть и попробуйте снова.</string>
+    <string name="error_airplay_pairing_start">Не удалось начать подключение плеера: %1$s</string>
+    <string name="error_airplay_pairing_failed">Не удалось подключить плеер: %1$s</string>
+    <string name="error_generic">Произошла ошибка.</string>
+</resources>

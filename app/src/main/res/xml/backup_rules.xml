@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Pairing credentials are Keystore-wrapped and cannot be restored onto
+         different hardware, so they are never worth backing up. -->
+    <exclude domain="sharedpref" path="." />
+</full-backup-content>

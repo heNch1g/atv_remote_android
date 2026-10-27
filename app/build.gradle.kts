@@ -22,8 +22,8 @@ android {
         applicationId = "com.example.appletvremote"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.9"
+        versionCode = 10
+        versionName = "0.9.1"
     }
 
     signingConfigs {

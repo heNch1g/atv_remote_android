@@ -39,7 +39,7 @@ class NowPlayingService : Service() {
 
     /** Decoded artwork, kept until the bytes change, since decoding is not cheap. */
     private var artwork: Bitmap? = null
-    private var artworkBytes = -1
+    private var artworkSource: ByteArray? = null
 
     private val nothingPlaying: String get() = getString(R.string.nothing_playing)
 
@@ -114,8 +114,25 @@ class NowPlayingService : Service() {
 
     /** Push the snapshot into the session, which is what the shade reads. */
     private fun apply(snapshot: NowPlayingSnapshot) {
-        if (snapshot.artwork?.size != artworkBytes) {
-            artworkBytes = snapshot.artwork?.size ?: -1
+        // Nothing on screen: clear the session so the system does not keep a
+        // stale media card in its carousel while the service is only
+        // listening for playback in the background.
+        if (!snapshot.isWorthShowing()) {
+            session.setMetadata(MediaMetadata.Builder().build())
+            session.setPlaybackState(
+                PlaybackState.Builder()
+                    .setState(
+                        PlaybackState.STATE_NONE,
+                        PlaybackState.PLAYBACK_POSITION_UNKNOWN,
+                        0f,
+                    )
+                    .build(),
+            )
+            return
+        }
+
+        if (snapshot.artwork !== artworkSource) {
+            artworkSource = snapshot.artwork
             artwork = snapshot.artwork?.let {
                 runCatching { BitmapFactory.decodeByteArray(it, 0, it.size) }.getOrNull()
             }
@@ -166,18 +183,39 @@ class NowPlayingService : Service() {
         )
     }
 
+    /**
+     * The foreground-service card used while the app only listens for
+     * playback. Deliberately not a MediaStyle notification: the shade should
+     * get the player card when something starts, not before.
+     */
+    private fun idleNotification(snapshot: NowPlayingSnapshot?): Notification =
+        Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(snapshot?.deviceName ?: getString(R.string.app_name))
+            .setContentText(getString(R.string.notif_waiting))
+            .setContentIntent(openApp())
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .build()
+
     private fun notification(snapshot: NowPlayingSnapshot?): Notification {
-        val playing = snapshot?.playing == true
+        // While the service waits for playback it is still a foreground
+        // service and therefore must show something; keep that card plain and
+        // quiet instead of presenting an empty media player.
+        if (snapshot == null || !snapshot.isWorthShowing()) return idleNotification(snapshot)
+
+        val playing = snapshot.playing
         val builder = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(snapshot?.title ?: nothingPlaying)
-            .setContentText(snapshot?.artist ?: snapshot?.deviceName ?: "")
+            .setContentTitle(snapshot.title ?: nothingPlaying)
+            .setContentText(snapshot.artist ?: snapshot.deviceName)
             .setContentIntent(openApp())
             .setVisibility(Notification.VISIBILITY_PUBLIC)
-            // Pinned for as long as the remote is connected: the user reads
-            // the playhead in the shade, and a card that vanish on pause is
-            // the behaviour they explicitly did not want. Retract it yourself
-            // on disconnect (see the null snapshot below).
+            // Pinned while the item exists: the user reads the playhead in the
+            // shade, and pausing must not make the card vanish. It goes away
+            // when playback stops (the service falls back to the quiet
+            // connection card) or when the remote disconnects.
             .setOngoing(true)
             .setStyle(
                 Notification.MediaStyle()
@@ -206,7 +244,7 @@ class NowPlayingService : Service() {
                 ),
             )
 
-        snapshot?.deviceName?.let { builder.setSubText(it) }
+        snapshot.deviceName.let { builder.setSubText(it) }
         artwork?.let { builder.setLargeIcon(it) }
         return builder.build()
     }

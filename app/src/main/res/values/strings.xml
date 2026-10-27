@@ -51,8 +51,8 @@
     <!-- Settings -->
     <string name="settings">Настройки</string>
     <string name="settings_title">Настройки пульта</string>
-    <string name="setting_swipe_guard">Защита от обратных свайпов</string>
-    <string name="setting_swipe_guard_hint">Не реагировать на случайное движение назад во время свайпа.</string>
+    <string name="setting_swipe_guard">Фильтр дрожания тачпада</string>
+    <string name="setting_swipe_guard_hint">Игнорировать мелкие случайные движения пальца. Уверенный свайп проходит без задержки, а смена направления срабатывает сразу.</string>
     <string name="setting_theme">Тема</string>
     <string name="setting_theme_hint">Как в системе, всегда тёмная или всегда светлая.</string>
     <string name="theme_auto">Авто</string>
@@ -65,12 +65,15 @@
     <string name="setting_player_connected">Подключён: прогресс и перемотка доступны.</string>
     <string name="setting_player_pair">Подключить</string>
     <string name="setting_player_working">Подключение…</string>
+    <string name="setting_player_background">Плеер в фоне</string>
+    <string name="setting_player_background_hint">Держать связь с Apple TV, когда приложение свёрнуто: карточка появится, как только на приставке начнётся воспроизведение. Расходует батарею.</string>
     <string name="done">Готово</string>
     <string name="more_options">Ещё</string>
     <string name="forget_pairing">Забыть сопряжение</string>
 
     <!-- Media notification -->
     <string name="nothing_playing">Ничего не воспроизводится</string>
+    <string name="notif_waiting">Подключено — ждём воспроизведения</string>
     <string name="notif_channel_nowplaying">Сейчас играет</string>
     <string name="notif_channel_nowplaying_desc">Плеер Apple TV с прогрессом и перемоткой.</string>
     <string name="play">Воспроизвести</string>

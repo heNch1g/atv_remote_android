@@ -80,10 +80,16 @@ data class UiState(
     val padMode: PadMode = PadMode.TOUCHPAD,
     /** Whether the volume bar is shown on the remote. */
     val volumeControls: Boolean = true,
-    /** Whether accidental reverse movement is filtered out of swipes. */
+    /** Whether tiny finger jitter is filtered out of touchpad swipes. */
     val swipeGuard: Boolean = true,
     /** Palette requested in settings. */
     val themeMode: ThemeMode = ThemeMode.AUTO,
+    /**
+     * Keep the media session alive while the app is in the background, so the
+     * player card can appear when playback starts on the TV. Costs battery:
+     * the MRP tunnel and its feedback loop stay up while nothing plays.
+     */
+    val playerBackground: Boolean = false,
     /** What the Apple TV says is playing, from the separate AirPlay tunnel. */
     val nowPlaying: NowPlaying? = null,
     /** Playhead in seconds as of [playheadAt], or null if none is known. */
@@ -188,6 +194,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         val swipeGuard = uiPrefs.getBoolean(KEY_SWIPE_GUARD, true)
         val savedTheme = uiPrefs.getString(KEY_THEME_MODE, null)
         val themeMode = ThemeMode.entries.firstOrNull { it.name == savedTheme } ?: ThemeMode.AUTO
+        val playerBackground = uiPrefs.getBoolean(KEY_PLAYER_BACKGROUND, false)
 
         // Reconnect to the Apple TV used last, without waiting for a scan.
         val lastDevice = store.loadLastDevice()
@@ -199,6 +206,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
                 volumeControls = volumeControls,
                 swipeGuard = swipeGuard,
                 themeMode = themeMode,
+                playerBackground = playerBackground,
                 devices = listOfNotNull(autoTarget),
                 pairedKeys = store.pairedKeys(),
             )
@@ -233,14 +241,25 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Mirror the connection into the notification.
      *
-     * It runs for as long as the remote screen is open rather than only while
-     * something plays. Waiting for playback would mean the notification could
-     * never appear unless the app happened to be in the foreground, and the
-     * foreground service is itself what keeps the connections alive after the
-     * screen is dismissed.
+     * With the AirPlay pairing the media card only appears once the TV reports
+     * something: an idle Apple TV must not leave a "ничего не воспроизводится"
+     * card in the shade. Starting playback while the app is in the foreground
+     * always raises it. When [UiState.playerBackground] is on, the service is
+     * kept alive with a quiet connection notification even while idle, so
+     * playback that starts after the app was dismissed is still noticed; that
+     * is the battery trade-off the setting exists for.
+     *
+     * Without that pairing there is no playback signal at all, so a
+     * transport-only card stays pinned for as long as the remote is connected:
+     * it is the only way to pause or skip from the shade.
      */
     private fun syncNotification(state: UiState) {
-        val snapshot = buildSnapshot(state)
+        val playing = state.nowPlaying?.isActive == true
+        // Without the AirPlay pairing there is no playback signal to wait for,
+        // so the transport-only card keeps its old always-present behaviour.
+        val controlsOnly = !state.airplayPaired
+        val keepListening = playing || controlsOnly || state.playerBackground
+        val snapshot = if (keepListening) buildSnapshot(state) else null
         if (snapshot == null) {
             // A null snapshot is the service's cue to stop itself.
             if (notificationRunning) {
@@ -274,9 +293,17 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
      * Re-post the media card. Android 13+ lets the notification be folded
      * away even from a foreground service, and the card the shade builds from
      * it goes with it well before the connection is lost.
+     *
+     * With nothing playing there is no card to recall: starting the service
+     * would only flash an empty "ничего не воспроизводится" notification.
      */
     fun showPlayerNotification() {
-        if (_state.value.screen !is Screen.Remote) return
+        val state = _state.value
+        if (state.screen !is Screen.Remote) return
+        val showable = state.nowPlaying?.isActive == true ||
+            state.playerBackground ||
+            !state.airplayPaired
+        if (!showable) return
         NowPlayingService.show(getApplication())
     }
 
@@ -293,6 +320,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
             playing = playing?.playbackState == PlaybackState.PLAYING,
             position = state.positionNow(),
             duration = playing?.position?.second,
+            controlsOnly = !state.airplayPaired,
         )
     }
 
@@ -894,7 +922,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(volumeControls = enabled) }
     }
 
-    /** Filter accidental reverse movement out of touchpad swipes. */
+    /** Filter tiny accidental finger movements out of touchpad swipes. */
     fun setSwipeGuard(enabled: Boolean) {
         uiPrefs.edit().putBoolean(KEY_SWIPE_GUARD, enabled).apply()
         _state.update { it.copy(swipeGuard = enabled) }
@@ -905,6 +933,21 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value.themeMode == mode) return
         uiPrefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
         _state.update { it.copy(themeMode = mode) }
+    }
+
+    /**
+     * Keep listening for playback start after the app leaves the screen.
+     *
+     * Turning this off tears the foreground media service down as soon as
+     * nothing plays, which is the battery-friendly choice: the card then only
+     * appears while the app is still in the foreground. Turning it on keeps a
+     * quiet service notification up so a film started later in the evening
+     * still raises the media card.
+     */
+    fun setPlayerBackground(enabled: Boolean) {
+        if (_state.value.playerBackground == enabled) return
+        uiPrefs.edit().putBoolean(KEY_PLAYER_BACKGROUND, enabled).apply()
+        _state.update { it.copy(playerBackground = enabled) }
     }
 
     /**
@@ -1238,6 +1281,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         const val KEY_VOLUME_CONTROLS = "volume-controls"
         const val KEY_SWIPE_GUARD = "swipe-guard"
         const val KEY_THEME_MODE = "theme-mode"
+        const val KEY_PLAYER_BACKGROUND = "player-background"
 
         /** AirPlay control port, where MRP and its pairing live. */
         const val AIRPLAY_PORT = 7000

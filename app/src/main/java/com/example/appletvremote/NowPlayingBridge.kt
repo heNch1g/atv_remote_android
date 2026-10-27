@@ -23,18 +23,42 @@ class NowPlayingSnapshot(
     val position: Double?,
     /** Item length in seconds, null when the device reports none. */
     val duration: Double?,
+    /**
+     * True when there is no metadata tunnel, so the only thing the card can
+     * offer is the Companion transport controls. Such a card stays available
+     * even with nothing playing: it is the only way to start playback from the
+     * shade, and there is no signal that could make it appear on its own.
+     */
+    val controlsOnly: Boolean = false,
 ) {
-    // Artwork is compared by size: the bytes are large and decoding identical
-    // artwork again would be wasted work.
+    /** Whether there is an actual item to present, as opposed to idle. */
+    fun hasItem(): Boolean = title != null || artist != null || playing
+
+    /** Whether the card should be drawn at all, item or not. */
+    fun isWorthShowing(): Boolean = hasItem() || controlsOnly
+
+    // The byte arrays are the same instance until the TV sends new artwork,
+    // so contentEquals short-circuits on identity and costs nothing in the
+    // common case. Comparing only the size would drop a new still of the same
+    // dimensions.
     override fun equals(other: Any?): Boolean =
         other is NowPlayingSnapshot && deviceName == other.deviceName &&
             title == other.title && artist == other.artist && album == other.album &&
             playing == other.playing && position == other.position &&
-            duration == other.duration &&
-            (artwork?.size ?: 0) == (other.artwork?.size ?: 0)
+            duration == other.duration && controlsOnly == other.controlsOnly &&
+            artwork.contentEquals(other.artwork)
 
     override fun hashCode(): Int =
-        listOf(deviceName, title, artist, album, playing, position, duration).hashCode()
+        listOf(
+            deviceName,
+            title,
+            artist,
+            album,
+            playing,
+            position,
+            duration,
+            controlsOnly,
+        ).hashCode()
 }
 
 /** What the notification can ask the Apple TV to do. */

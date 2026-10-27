@@ -189,7 +189,7 @@ data class NowPlaying(
             album == other.album && appName == other.appName &&
             playbackState == other.playbackState &&
             duration == other.duration && elapsedTime == other.elapsedTime &&
-            (artwork?.size ?: 0) == (other.artwork?.size ?: 0)
+            artwork.contentEquals(other.artwork)
 
     override fun hashCode(): Int =
         listOf(title, artist, album, appName, playbackState, duration, elapsedTime).hashCode()

@@ -1,10 +1,13 @@
 package com.example.appletvremote.ui
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -79,8 +82,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -96,7 +101,9 @@ import com.example.appletvremote.positionNow
 import com.example.appletvremote.protocol.companion.Button as RemoteButton
 import com.example.appletvremote.protocol.companion.TouchPhase
 import com.example.appletvremote.protocol.discovery.AppleTvDevice
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @Composable
 fun RemoteScreen(
@@ -123,6 +130,7 @@ fun RemoteScreen(
     onSetVolumeControls: (Boolean) -> Unit,
     onSetSwipeGuard: (Boolean) -> Unit,
     onSetThemeMode: (ThemeMode) -> Unit,
+    onSetPlayerBackground: (Boolean) -> Unit,
     onPairPlayer: () -> Unit,
     onShowPlayer: () -> Unit,
 ) {
@@ -251,6 +259,9 @@ fun RemoteScreen(
                 connected = state.connected,
                 busy = state.busy,
                 textPanelOpen = state.textPanelOpen,
+                playerAvailable = state.nowPlaying?.isActive == true ||
+                    state.playerBackground ||
+                    !state.airplayPaired,
                 onKeyboard = tap { onToggleTextPanel() },
                 onShowPlayer = tap { onShowPlayer() },
                 onPower = tap { if (state.connected) onSleep() else onWakeDevice() },
@@ -358,7 +369,7 @@ fun RemoteScreen(
             onDismissRequest = { showSettings = false },
             title = { Text(stringResource(R.string.settings_title)) },
             text = {
-                Column {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     SettingThemeRow(
                         theme = state.themeMode,
                         onTheme = onSetThemeMode,
@@ -376,6 +387,13 @@ fun RemoteScreen(
                         subtitle = stringResource(R.string.setting_volume_hint),
                         checked = state.volumeControls,
                         onCheckedChange = onSetVolumeControls,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    SettingSwitchRow(
+                        title = stringResource(R.string.setting_player_background),
+                        subtitle = stringResource(R.string.setting_player_background_hint),
+                        checked = state.playerBackground,
+                        onCheckedChange = onSetPlayerBackground,
                     )
                     Spacer(Modifier.height(16.dp))
                     SettingPlayerRow(
@@ -559,7 +577,7 @@ private fun NowPlayingPanel(
     } else {
         null
     }
-    val title = playing.title ?: playing.artist
+    val title = playing.title ?: playing.artist ?: playing.appName
         ?: stringResource(R.string.nothing_playing)
     val subtitle = listOfNotNull(
         playing.title?.let { playing.artist },
@@ -590,21 +608,35 @@ private fun NowPlayingPanel(
                 )
             }
             Spacer(Modifier.height(6.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (subtitle.isNotEmpty()) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Artwork is optional: without the AirPlay pairing, or for a
+                // live stream, the TV may report none. The slot disappears in
+                // that case instead of leaving an empty tile.
+                if (playing.artwork != null) {
+                    AlbumArt(
+                        artwork = playing.artwork,
+                        modifier = Modifier.size(56.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (subtitle.isNotEmpty()) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
             if (fraction != null && total != null && position != null) {
                 Spacer(Modifier.height(10.dp))
@@ -632,6 +664,52 @@ private fun NowPlayingPanel(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Artwork from the MRP tunnel, decoded off the main thread.
+ *
+ * Decoding is keyed on the byte array, so a metadata refresh carrying the same
+ * artwork does not decode it again. Until the bitmap is ready, and if the
+ * bytes turn out not to be an image, a neutral tile holds the space so the
+ * text does not jump sideways.
+ */
+@Composable
+private fun AlbumArt(
+    artwork: ByteArray,
+    modifier: Modifier = Modifier,
+) {
+    var bitmap by remember(artwork) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(artwork) {
+        bitmap = withContext(Dispatchers.Default) {
+            runCatching { BitmapFactory.decodeByteArray(artwork, 0, artwork.size) }
+                .getOrNull()
+        }
+    }
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+        contentAlignment = Alignment.Center,
+    ) {
+        val decoded = bitmap
+        if (decoded != null) {
+            Image(
+                bitmap = decoded.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Rounded.PlayCircle,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -1121,6 +1199,7 @@ private fun UtilityBar(
     connected: Boolean,
     busy: Boolean,
     textPanelOpen: Boolean,
+    playerAvailable: Boolean,
     onKeyboard: () -> Unit,
     onShowPlayer: () -> Unit,
     onPower: () -> Unit,
@@ -1141,7 +1220,7 @@ private fun UtilityBar(
             icon = Icons.Rounded.PlayCircle,
             label = stringResource(R.string.player),
             active = false,
-            enabled = connected,
+            enabled = connected && playerAvailable,
             onClick = onShowPlayer,
         )
         UtilityKey(

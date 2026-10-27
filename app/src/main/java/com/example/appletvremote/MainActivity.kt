@@ -189,6 +189,7 @@ private fun AppRoot(vm: RemoteViewModel) {
                 onSetVolumeControls = vm::setVolumeControls,
                 onSetSwipeGuard = vm::setSwipeGuard,
                 onSetThemeMode = vm::setThemeMode,
+                onSetPlayerBackground = vm::setPlayerBackground,
                 onPairPlayer = { vm.startAirPlayPairing(screen.device) },
                 onShowPlayer = vm::showPlayerNotification,
             )

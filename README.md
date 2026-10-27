@@ -4,6 +4,8 @@
 Работает напрямую по протоколу Apple Companion Link — без промежуточного
 сервера, Python-моста и облака.
 
+**Текущая версия:** 0.9 · [Скачать APK](https://github.com/heNch1g/atv_remote_android/releases/latest)
+
 > Приложение не связано с Apple Inc. «Apple», «Apple TV», «AirPlay» и «Siri»
 > являются товарными знаками Apple Inc. Названия используются только для
 > описания совместимости.
@@ -98,6 +100,7 @@
 ```
 
 Готовый APK: `app/build/outputs/apk/debug/app-debug.apk`.
+Релизная сборка: `app/build/outputs/apk/release/app-release.apk`.
 
 Установка на подключённый телефон:
 
@@ -105,7 +108,9 @@
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Release-сборка не подписывается, пока нет `keystore.properties`. Формат:
+Release-сборка без `keystore.properties` подписывается отладочным ключом,
+поэтому APK остаётся устанавливаемым. Для собственного ключа создайте
+`keystore.properties`:
 
 ```properties
 storeFile=../release.jks
@@ -296,8 +301,10 @@ app/src/main/java/com/example/appletvremote/
   ошибок (AGP 8.7.3, Gradle 8.14.3, JDK 17, compileSdk 35).
 - Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (~19,4 МБ),
   подписан отладочным ключом и устанавливается на телефон.
-- Без `keystore.properties` release-сборка получается неподписанной:
-  `app/build/outputs/apk/release/app-release-unsigned.apk` (~13,3 МБ).
+- Release APK: `app/build/outputs/apk/release/app-release.apk` (~13,3 МБ).
+  Без `keystore.properties` он тоже подписывается отладочным ключом, поэтому
+  устанавливается поверх debug-сборки; для публикации в магазине нужен
+  собственный ключ.
 - На реальном Apple TV и телефоне приложение не проверялось: в среде сборки не
   было ни телевизора, ни Android-устройства. Сопряжение, кнопки, тачпад, сила
   вибрации, пробуждение любой кнопкой, второе AirPlay-сопряжение и карточка

@@ -7,7 +7,8 @@ plugins {
 }
 
 // Release signing is optional: without keystore.properties the release build
-// is simply left unsigned, so the project still compiles out of the box.
+// falls back to the debug key, so the APK still installs on a phone. Add a
+// real keystore before distributing through a store.
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("keystore.properties")
     if (file.exists()) file.inputStream().use { load(it) }
@@ -21,8 +22,8 @@ android {
         applicationId = "com.example.appletvremote"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 9
+        versionName = "0.9"
     }
 
     signingConfigs {
@@ -48,7 +49,10 @@ android {
                 "proguard-rules.pro",
             )
             buildConfigField("boolean", "WIRE_LOGGING", "false")
+            // No keystore configured: keep the release APK installable by
+            // signing it with the debug key instead of leaving it unsigned.
             signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
         }
         debug {
             // Wire logging dumps frame hex, including pairing traffic.

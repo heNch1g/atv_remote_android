@@ -192,6 +192,7 @@ private fun AppRoot(vm: RemoteViewModel) {
                 onSetPlayerBackground = vm::setPlayerBackground,
                 onPairPlayer = { vm.startAirPlayPairing(screen.device) },
                 onShowPlayer = vm::showPlayerNotification,
+                onSkip = vm::skip,
             )
         }
     }

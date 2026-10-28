@@ -69,6 +69,12 @@ object Mrp {
     // ContentItemMetadata rather than inferring.
     const val META_ELAPSED = 35
     const val META_DURATION = 14
+    /**
+     * When [META_ELAPSED] was written, as Apple's reference epoch (seconds
+     * since 2001-01-01 UTC). pyatv uses it for the same reason: the playhead
+     * in the metadata is a snapshot, and this is how old the snapshot is.
+     */
+    const val META_ELAPSED_AT = 74
 
     /**
      * DEVICE_INFO must be the very first message sent; the device stays silent

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -133,6 +134,7 @@ fun RemoteScreen(
     onSetPlayerBackground: (Boolean) -> Unit,
     onPairPlayer: () -> Unit,
     onShowPlayer: () -> Unit,
+    onSkip: (Double) -> Unit,
 ) {
     var showSettings by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
@@ -160,21 +162,38 @@ fun RemoteScreen(
     ) {
         val compact = maxHeight < 720.dp
         val sectionGap = if (compact) 8.dp else 12.dp
-        val keySize = if (compact) 52.dp else 62.dp
+        val keySize = if (compact) 46.dp else 54.dp
         // The now-playing card is drawn only while the TV reports something:
         // an idle Apple TV should leave the gap empty instead of showing a
         // placeholder.
         val nowPlaying = state.nowPlaying?.takeIf { it.isActive }
-        // Everything except the pad and the round keys.
-        val chrome = 50.dp + 40.dp + 46.dp + 50.dp + 4.dp + sectionGap * 4
-        // Keep a little room for status cards and never exceed a
-        // comfortable thumb-sized pad.
-        val padHeight = (
-            maxHeight - chrome - (keySize + 14.dp) - 40.dp
-            ).coerceIn(150.dp, 280.dp)
-        // On very short screens (typically landscape) the controls no
-        // longer fit; fall back to a scrollable column.
-        val scrollable = maxHeight < 480.dp
+        // Everything above and below the pad, measured from the composables
+        // below. The volume bar belongs here: leaving it out kept the pad at
+        // its full height and squeezed the now-playing card instead, which is
+        // why the card was clipped by a few dp once the slider was shown.
+        val volumeRow = if (state.volumeControls) {
+            56.dp + if (compact) 6.dp else 8.dp
+        } else {
+            0.dp
+        }
+        val chrome = 52.dp + 46.dp + keySize + 20.dp + volumeRow + 64.dp +
+            4.dp + sectionGap * 3
+        // The card sits in the flexible gap between the header and the
+        // controls, so the pad has to leave room for it instead of taking all
+        // the spare height for itself.
+        val cardReserve = if (nowPlaying != null) 150.dp else 0.dp
+        // On short screens (a small phone, typically landscape) the card and
+        // the controls no longer fit together; fall back to a scrollable
+        // column rather than clipping the card.
+        val scrollable = maxHeight < 560.dp
+        // Never exceed a comfortable thumb-sized pad, and never shrink below
+        // something that still separates a tap from a swipe. A scrolling
+        // column has no height to share, so the pad just gets a normal size.
+        val padHeight = if (scrollable) {
+            if (compact) 170.dp else 200.dp
+        } else {
+            (maxHeight - chrome - cardReserve).coerceIn(112.dp, 260.dp)
+        }
 
         val messages: @Composable () -> Unit = {
             state.error?.let { message ->
@@ -292,7 +311,7 @@ fun RemoteScreen(
                 }
                 Spacer(Modifier.height(12.dp))
                 if (nowPlaying != null) {
-                    NowPlayingPanel(state = state)
+                    NowPlayingPanel(state = state, onSkip = onSkip)
                     Spacer(Modifier.height(12.dp))
                 }
                 messages()
@@ -323,7 +342,7 @@ fun RemoteScreen(
                 ) {
                     if (nowPlaying != null) {
                         Spacer(Modifier.height(12.dp))
-                        NowPlayingPanel(state = state)
+                        NowPlayingPanel(state = state, onSkip = onSkip)
                     }
                     Spacer(Modifier.weight(1f))
                     Column(
@@ -553,6 +572,7 @@ private fun SettingPlayerRow(
 @Composable
 private fun NowPlayingPanel(
     state: UiState,
+    onSkip: (Double) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val playing = state.nowPlaying?.takeIf { it.isActive } ?: return
@@ -637,6 +657,18 @@ private fun NowPlayingPanel(
                         )
                     }
                 }
+                // ±15 seconds lives in the shade, which is not where the
+                // remote is in hand. The step matches the notification and the
+                // skip the Apple TV itself performs.
+                SkipButton(
+                    label = stringResource(R.string.skip_back_short),
+                    onClick = { onSkip(-SKIP_SECONDS) },
+                )
+                Spacer(Modifier.width(6.dp))
+                SkipButton(
+                    label = stringResource(R.string.skip_forward_short),
+                    onClick = { onSkip(SKIP_SECONDS) },
+                )
             }
             if (fraction != null && total != null && position != null) {
                 Spacer(Modifier.height(10.dp))
@@ -665,6 +697,27 @@ private fun NowPlayingPanel(
                 }
             }
         }
+    }
+}
+
+/**
+ * A ±15 second step, sized to share the card's single row with the artwork so
+ * the player stays compact on a short screen.
+ */
+@Composable
+private fun SkipButton(
+    label: String,
+    onClick: () -> Unit,
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = Modifier
+            .width(48.dp)
+            .height(38.dp),
+        contentPadding = PaddingValues(0.dp),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Text(text = label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
 }
 
@@ -1412,3 +1465,6 @@ private fun TextInputPanel(
         }
     }
 }
+
+/** Step of the ±15 second buttons on the player card, in seconds. */
+private const val SKIP_SECONDS = 15.0

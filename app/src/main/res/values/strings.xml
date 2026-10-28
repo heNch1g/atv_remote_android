@@ -80,6 +80,8 @@
     <string name="pause">Пауза</string>
     <string name="skip_back">−15 секунд</string>
     <string name="skip_forward">+15 секунд</string>
+    <string name="skip_back_short">−15 с</string>
+    <string name="skip_forward_short">+15 с</string>
 
     <!-- AirPlay player pairing -->
     <string name="airplay_pairing_title">Подключение плеера</string>

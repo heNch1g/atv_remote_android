@@ -22,8 +22,8 @@ android {
         applicationId = "com.example.appletvremote"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.9.1"
+        versionCode = 11
+        versionName = "0.9.2"
     }
 
     signingConfigs {
@@ -103,6 +103,9 @@ dependencies {
 
     // Lightweight API only; the platform BouncyCastle provider is not used.
     implementation("org.bouncycastle:bcprov-jdk18on:1.80")
+
+    // The swipe rules live in a plain class so they can be checked on the JVM.
+    testImplementation("junit:junit:4.13.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

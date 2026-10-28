@@ -266,6 +266,14 @@ class Ap2Session(
         // duration, and a stale elapsed time would draw a scrubber that lies.
         val elapsed = metadata.double(Mrp.META_ELAPSED)
             ?.takeIf { it.isFinite() && it >= 0 && (duration == null || it <= duration) }
+            ?.let { value ->
+                agedPlayhead(
+                    value = value,
+                    writtenAt = metadata.double(Mrp.META_ELAPSED_AT),
+                    playing = updated.playbackState == PlaybackState.PLAYING,
+                    duration = duration,
+                )
+            }
         Log.d { "content item $metadata elapsed=$elapsed duration=$duration" }
 
         return updated.copy(
@@ -302,6 +310,33 @@ class Ap2Session(
         publish(entry)
     }
 
+    /**
+     * Age the playhead snapshot in [Mrp.META_ELAPSED] by the instant it was
+     * written at, in [Mrp.META_ELAPSED_AT].
+     *
+     * The content item is written once and not rewritten while playback
+     * continues, so its `elapsedTime` can be minutes behind the film. Anchoring
+     * the scrubber at that value — which is what happens without this
+     * correction — put the bar in the wrong place whenever the remote was
+     * opened on something already playing.
+     *
+     * Both devices sync their clocks over NTP, so an age outside a plausible
+     * range means the field is not what it claims or a clock is badly wrong;
+     * the raw value is then the safer answer.
+     */
+    private fun agedPlayhead(
+        value: Double,
+        writtenAt: Double?,
+        playing: Boolean,
+        duration: Double?,
+    ): Double {
+        if (!playing) return value
+        if (writtenAt == null || !writtenAt.isFinite() || writtenAt <= 0.0) return value
+        val age = System.currentTimeMillis() / 1000.0 - (writtenAt + COCOA_EPOCH_OFFSET)
+        if (age < 0.0 || age > MAX_PLAYHEAD_AGE_SECONDS) return value
+        return (value + age).coerceAtMost(duration ?: Double.MAX_VALUE)
+    }
+
     private fun publish(state: NowPlaying) {
         if (state == nowPlaying) return
         nowPlaying = state
@@ -319,5 +354,11 @@ class Ap2Session(
     private companion object {
         const val AIRPLAY_PORT = 7000
         const val DEVICE_ID = "AA:BB:CC:DD:EE:FF"
+
+        /** Seconds between the Unix epoch and Apple's 2001-01-01 reference. */
+        const val COCOA_EPOCH_OFFSET = 978_307_200.0
+
+        /** Oldest playhead snapshot worth trusting, in seconds. */
+        const val MAX_PLAYHEAD_AGE_SECONDS = 21_600.0
     }
 }

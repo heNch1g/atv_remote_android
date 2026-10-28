@@ -25,8 +25,6 @@ import androidx.compose.ui.unit.dp
 import com.example.appletvremote.R
 import com.example.appletvremote.protocol.companion.TouchPhase
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.math.hypot
-import kotlin.math.roundToInt
 
 /**
  * Apple-style touch surface.
@@ -34,30 +32,19 @@ import kotlin.math.roundToInt
  * A tap is a real SELECT press, a long hold opens the contextual menu, and a
  * drag is forwarded as PRESS/HOLD/RELEASE samples.
  *
- * The swipe works like the one in Clicker, which was confirmed against a real
- * TV:
+ * Taps are separated from swipes by Android's own touch slop. Everything the
+ * finger did before that point is a dead zone and is not forwarded, so the
+ * first sample after PRESS is a clean step instead of a velocity spike. The
+ * swipe itself is driven by [SwipeTracker], which explains how the roll of a
+ * thumb at the very start of a gesture is kept from jerking the focus the
+ * wrong way, and how the finger is lifted at an edge so a flick keeps its
+ * speed.
  *
- *  - Every gesture starts at the **centre** of the virtual 0..1000 surface, not
- *    under the finger. tvOS reads the movement between samples, so starting
- *    near an edge used to make one or two directions impossible: there was no
- *    room left to move.
- *  - After the press, the finger's own motion is accumulated and scaled up by
- *    [GAIN_UNITS_PER_DP]. The phone pad is larger than the TV's surface, so the
- *    gain restores the physical scale of a real remote: moving the finger about
- *    16 mm from the centre reaches an edge, and a slow 10 mm swipe delivers a
- *    full directional step. A quick flick still arrives well above the speed
- *    tvOS reads as a flick.
- *  - HOLD samples go out at most every [HOLD_INTERVAL_NS] and only when the
- *    finger has actually moved. Unlike the old per-event threshold, the filter
- *    accumulates skipped movement instead of discarding it, so a slow swipe is
- *    no longer silently swallowed.
- *  - Reaching an edge sends RELEASE at that edge and ends the touch stream, as
- *    a finger sliding off the real remote would. Pinning the finger at the edge
- *    made tvOS see it stop and lift with no velocity, which jerked focus back.
- *
- * Taps are separated from swipes by the platform touch slop. Everything the
- * finger moved before that point is a dead zone and is not forwarded, so the
- * first sample after PRESS is a clean, small step instead of a velocity spike.
+ * Every gesture starts at the **centre** of the virtual 0..1000 surface, not
+ * under the finger: tvOS reads the movement between samples, and starting near
+ * an edge used to make one or two directions impossible. Finger travel is
+ * scaled up by [GAIN_UNITS_PER_DP], which gives the pad the physical scale of
+ * a real remote: about 26 mm of travel across the whole surface.
  */
 @Composable
 fun Touchpad(
@@ -99,10 +86,7 @@ fun Touchpad(
                     pressed = true
                     haptics.touchDown()
 
-                    var touchOpen = false
-                    var lastX = CENTRE.toFloat()
-                    var lastY = CENTRE.toFloat()
-
+                    var tracker: SwipeTracker? = null
                     try {
                         var committed: PointerInputChange? = null
                         var tapped = false
@@ -163,79 +147,67 @@ fun Touchpad(
 
                         // A swipe. The press always lands in the middle of the
                         // TV's surface; the dead zone before this moment is not
-                        // forwarded, so the first sample is small and clean.
-                        onTouch(CENTRE, CENTRE, TouchPhase.PRESS)
-                        touchOpen = true
-                        lastX = CENTRE.toFloat()
-                        lastY = CENTRE.toFloat()
+                        // forwarded.
+                        val swipe = SwipeTracker(
+                            unitsPerPx = unitsPerPx,
+                            armConfirmPx = ARM_CONFIRM_DP.dp.toPx(),
+                            armWindowNs = ARM_WINDOW_NS,
+                            adoptMinPx = ARM_MIN_DP.dp.toPx(),
+                            reverseConfirmPx = REVERSE_CONFIRM_DP.dp.toPx(),
+                            holdIntervalNs = HOLD_INTERVAL_NS,
+                            minStepUnits = minStep,
+                        )
+                        tracker = swipe
+                        swipe.begin(start.position.x, start.position.y, System.nanoTime())
+                            .let { onTouch(it.x, it.y, it.phase) }
 
-                        var sentX = lastX
-                        var sentY = lastY
-                        var lastSendNanos = System.nanoTime()
-                        var previous = start.position
-
-                        var change: PointerInputChange? = start
                         while (true) {
-                            val current = change
-                                ?: awaitPointerEvent()
-                                    .changes
-                                    .firstOrNull { it.id == down.id }
+                            val current = awaitPointerEvent()
+                                .changes
+                                .firstOrNull { it.id == down.id }
                                 ?: break
-                            change = null
 
-                            val dx = current.position.x - previous.x
-                            val dy = current.position.y - previous.y
-                            previous = current.position
-                            lastX += dx * unitsPerPx
-                            lastY += dy * unitsPerPx
-
-                            // Sliding off the edge: lift there and stop sending
-                            // samples. The TV then gets a release that is still
-                            // moving, so the flick carries on instead of dying.
-                            if (lastX < 0f || lastX > TOUCH_RANGE.toFloat() ||
-                                lastY < 0f || lastY > TOUCH_RANGE.toFloat()
-                            ) {
-                                lastX = lastX.coerceIn(0f, TOUCH_RANGE.toFloat())
-                                lastY = lastY.coerceIn(0f, TOUCH_RANGE.toFloat())
-                                onTouch(lastX.roundToInt(), lastY.roundToInt(), TouchPhase.RELEASE)
-                                touchOpen = false
-                                // The rest of the gesture belongs to the pad,
-                                // but there is no finger left to follow.
-                                if (!current.changedToUp()) {
-                                    while (true) {
-                                        val event = awaitPointerEvent()
-                                        val up = event.changes.firstOrNull { it.id == down.id }
-                                            ?: break
-                                        if (up.changedToUp()) break
-                                        up.consume()
+                            val sample = swipe.move(
+                                current.position.x,
+                                current.position.y,
+                                System.nanoTime(),
+                            )
+                            if (sample != null) {
+                                onTouch(sample.x, sample.y, sample.phase)
+                                if (sample.phase == TouchPhase.RELEASE) {
+                                    // Sliding off the edge: lift there and stop
+                                    // sending samples, so the TV gets a release
+                                    // that is still moving and the flick
+                                    // carries on instead of dying. The rest of
+                                    // the gesture belongs to the pad, but there
+                                    // is no finger left to follow.
+                                    if (!current.changedToUp()) {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val up = event.changes
+                                                .firstOrNull { it.id == down.id }
+                                                ?: break
+                                            if (up.changedToUp()) break
+                                            up.consume()
+                                        }
                                     }
+                                    return@awaitEachGesture
                                 }
-                                return@awaitEachGesture
-                            }
-
-                            val now = System.nanoTime()
-                            val distance = hypot(lastX - sentX, lastY - sentY)
-                            val movedEnough = distance > 0f && distance >= minStep
-                            if (movedEnough && now - lastSendNanos >= HOLD_INTERVAL_NS) {
-                                sentX = lastX
-                                sentY = lastY
-                                lastSendNanos = now
-                                onTouch(lastX.roundToInt(), lastY.roundToInt(), TouchPhase.HOLD)
                             }
 
                             if (current.changedToUp()) break
                             current.consume()
                         }
 
-                        // Release where the finger actually stopped, including
-                        // any movement since the last throttled sample.
-                        onTouch(lastX.roundToInt(), lastY.roundToInt(), TouchPhase.RELEASE)
-                        touchOpen = false
+                        // Release where the finger actually stopped.
+                        swipe.end()?.let { onTouch(it.x, it.y, it.phase) }
                     } finally {
-                        if (touchOpen) {
-                            // The gesture was cancelled mid-swipe: never leave
-                            // the TV with a finger held down.
-                            onTouch(lastX.roundToInt(), lastY.roundToInt(), TouchPhase.RELEASE)
+                        // The gesture was cancelled mid-swipe: never leave the
+                        // TV with a finger held down.
+                        tracker?.let { swipe ->
+                            if (swipe.isTouching) {
+                                swipe.end()?.let { onTouch(it.x, it.y, it.phase) }
+                            }
                         }
                         pressed = false
                     }
@@ -254,20 +226,38 @@ fun Touchpad(
     }
 }
 
-/** Virtual touch surface used by the Companion protocol. */
-private const val TOUCH_RANGE = 1000
-
-/** Where every gesture starts: the middle of the virtual surface. */
-private const val CENTRE = TOUCH_RANGE / 2
-
 /**
  * Virtual units per dp of finger travel. Clicker measured that 1000 units on a
  * real remote correspond to roughly 33 mm of finger travel (about 208 dp), so
- * one screen-independent pixel of travel is worth about five units here. That
- * keeps the physical feel: ~16 mm from the centre to an edge and a slow 10 mm
- * swipe long enough for one focus step.
+ * one screen-independent pixel of travel is worth about five units. Six is a
+ * little more generous than that, which keeps a short slow swipe worth a full
+ * focus step now that the first few millimetres are held back while the
+ * direction is confirmed.
  */
-private const val GAIN_UNITS_PER_DP = 5f
+private const val GAIN_UNITS_PER_DP = 6f
+
+/**
+ * Net travel that settles the direction of a swipe on its own, in dp. A normal
+ * swipe crosses this within a few tens of milliseconds.
+ */
+private const val ARM_CONFIRM_DP = 9f
+
+/**
+ * How long the direction may stay undecided, in nanoseconds. A slow swipe
+ * sends its first sample when this runs out, provided the net travel has
+ * already reached [ARM_MIN_DP]; waiting any longer would make the pad feel
+ * laggy.
+ */
+private const val ARM_WINDOW_NS = 70_000_000L
+
+/** Smallest net travel worth acting on once [ARM_WINDOW_NS] has passed. */
+private const val ARM_MIN_DP = 2.5f
+
+/**
+ * Travel against the chosen direction that counts as a real reversal rather
+ * than a wobble, in dp.
+ */
+private const val REVERSE_CONFIRM_DP = 7f
 
 /**
  * Smoothest movement that is still forwarded when the jitter filter is on.
